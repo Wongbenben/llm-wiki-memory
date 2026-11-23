@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 怎麼記憶</title>
+<meta name="description" content="以 Claude 為例，看 AI 的三種記憶，以及 token 為什麼越聊越耗。">
+<style>
+:root{
+  --bg:#fbfaf7; --paper:#ffffff; --ink:#1f2328; --muted:#5b6270; --line:#e4e1da;
+  --accent:#4f46e5; --accent-soft:#eef0ff; --warn:#b45309; --warn-soft:#fff4e0;
+  --ok:#15803d; --ok-soft:#e8f6ec; --bad:#b91c1c;
+  --bar1:#c7cbf7; --bar2:#8d93ee; --bar3:#4f46e5;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#15161a; --paper:#1d1f25; --ink:#e8e6e1; --muted:#a3a8b3; --line:#30333b;
+    --accent:#8b8cf7; --accent-soft:#25264a; --warn:#f0a94b; --warn-soft:#3a2c16;
+    --ok:#5fcf86; --ok-soft:#1b3324; --bad:#f07a7a;
+    --bar1:#3a3d78; --bar2:#5d5fc0; --bar3:#8b8cf7;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  font-size:17px;line-height:1.8;-webkit-text-size-adjust:100%}
+.wrap{max-width:800px;margin:auto;padding:0 16px}
+header.hero{padding:56px 0 28px}
+.kicker{color:var(--accent);font-weight:700;letter-spacing:.08em;font-size:14px}
+h1{font-size:clamp(28px,6vw,40px);line-height:1.3;margin:8px 0 16px}
+.thesis{background:var(--accent-soft);border-left:4px solid var(--accent);padding:14px 18px;border-radius:0 10px 10px 0;margin:0;font-size:18px}
+.thesis b{color:var(--accent)}
+nav.toc{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);
+  backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+nav.toc ol{list-style:none;display:flex;gap:6px;margin:0 auto;padding:10px 16px;max-width:800px;overflow-x:auto;scrollbar-width:none}
+nav.toc ol::-webkit-scrollbar{display:none}
+nav.toc a{display:block;white-space:nowrap;padding:4px 12px;border-radius:999px;border:1px solid var(--line);
+  color:var(--ink);text-decoration:none;font-size:14px;background:var(--paper)}
+nav.toc a:hover{border-color:var(--accent);color:var(--accent)}
+section{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:24px 22px;margin:28px 0}
+h2{font-size:24px;line-height:1.4;margin:0 0 12px}
+h2 .no{display:inline-block;min-width:34px;height:34px;line-height:34px;text-align:center;border-radius:50%;
+  background:var(--accent);color:#fff;font-size:18px;margin-right:8px;vertical-align:2px}
+h3{font-size:19px;margin:26px 0 6px}
+p{margin:8px 0}
+a.src{font-size:13px;font-weight:700;color:var(--accent);text-decoration:none;background:var(--accent-soft);
+  border-radius:4px;padding:0 4px;margin-left:2px;white-space:nowrap}
+a.src:hover{text-decoration:underline}
+.tbl{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:16px;line-height:1.6}
+th,td{padding:9px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+th{background:var(--accent-soft);font-weight:700;white-space:nowrap}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+figure{margin:18px 0;padding:14px;border:1px dashed var(--line);border-radius:10px;overflow-x:auto}
+figure svg{display:block;width:100%;min-width:520px;height:auto}
+figcaption{font-size:16px;color:var(--muted);margin-top:8px;text-align:center}
+svg text{font-family:inherit;fill:var(--ink)}
+.s-muted{fill:var(--muted)} .s-accent{fill:var(--accent)} .s-line{stroke:var(--line)}
+.box-window{fill:var(--accent-soft);stroke:var(--accent);stroke-width:2}
+.blk{stroke:var(--paper);stroke-width:2}
+.b1{fill:var(--bar1)} .b2{fill:var(--bar2)} .b3{fill:var(--bar3)}
+.arrow{stroke:var(--muted);stroke-width:2;fill:none;marker-end:url(#ah)}
+.note{font-size:16px;color:var(--muted)}
+ul.tips{padding-left:1.2em;margin:8px 0}
+ul.tips li{margin:4px 0}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.92em;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+.egg{background:var(--warn-soft);border:1px solid var(--warn);border-radius:12px;padding:16px 18px;margin-top:22px}
+.egg h3{margin-top:0;color:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:24px;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+footer{padding:10px 0 48px;color:var(--muted);font-size:16px}
+footer ol{padding-left:1.4em}
+footer li{margin:8px 0;word-break:break-word}
+footer li:target{background:var(--accent-soft);border-radius:6px}
+footer a{color:var(--accent)}
+.made{border-top:1px solid var(--line);margin-top:24px;padding-top:14px;text-align:center}
+@media (max-width:560px){figcaption::after{content:"（手機可在框內左右滑動）";display:block}}
+@media (max-width:480px){
+  body{font-size:16px}
+  section{padding:18px 14px;border-radius:12px}
+  th,td{padding:8px 9px}
+}
+</style>
+</head>
+<body>
+
+<header class="hero wrap">
+  <div class="kicker">LLM WIKI 教學頁</div>
+  <h1>AI 是怎麼「記憶」的？<br>以 Claude 為例，順便看 token 怎麼被吃掉</h1>
+  <p class="thesis">主線一句話：AI 記住的東西，最後都要放進 <b>context window（上下文視窗）</b>才有用；放得越多，<b>token</b> 就耗得越多。</p>
+</header>
+
+<nav class="toc" aria-label="章節目錄">
+  <ol>
+    <li><a href="#s1">1 上下文視窗</a></li>
+    <li><a href="#s2">2 三種記憶</a></li>
+    <li><a href="#s3">3 越聊越貴</a></li>
+    <li><a href="#s4">4 聊天 App</a></li>
+    <li><a href="#s5">5 Claude Code</a></li>
+    <li><a href="#s6">6 省 token</a></li>
+    <li><a href="#sources">來源</a></li>
+  </ol>
+</nav>
+
+<main class="wrap">
+
+<!-- ===== 1 ===== -->
+<section id="s1">
+  <h2><span class="no">1</span>AI 的記憶其實只有一個地方：上下文視窗</h2>
+  <p>上下文視窗（context window）是模型產生回應時能參考的所有文字，包含它正在寫的回應本身<a class="src" href="#src-s1">S1</a>。
+  它不是模型訓練時讀過的那一大堆資料，而是模型的「工作記憶（working memory）」<a class="src" href="#src-s1">S1</a>。
+  換句話說，AI 回答時能參考的，就只有視窗裡的文字<a class="src" href="#src-s1">S1</a>。</p>
+  <p>在 Claude Code 裡，這個視窗裝著你的指示、它讀過的檔案、它自己的回應，還有從沒出現在終端機畫面上的內容<a class="src" href="#src-s2">S2</a>。</p>
+
+  <h3>什麼東西會被算進去？</h3>
+  <p>送出一次請求時，system prompt、每一則訊息（包括工具結果、圖片、文件）和工具定義，通通都算進視窗<a class="src" href="#src-s1">S1</a>。
+  連這一輪 Claude 產生的輸出（包括 extended thinking）也算<a class="src" href="#src-s1">S1</a>。</p>
+
+  <figure>
+    <svg viewBox="0 0 560 250" role="img" aria-label="上下文視窗示意：由下往上堆疊 system prompt、指示檔、對話、讀進來的檔案、這輪輸出">
+      <rect class="box-window" x="150" y="20" width="260" height="210" rx="10"/>
+      <line x1="140" y1="20" x2="420" y2="20" stroke="var(--bad)" stroke-width="2" stroke-dasharray="6 4"/>
+      <text x="428" y="25" font-size="14" style="fill:var(--bad)">上限</text>
+      <rect class="blk b3" x="160" y="186" width="240" height="34" rx="5"/><text x="280" y="208" text-anchor="middle" font-size="14" style="fill:#fff">system prompt＋工具定義</text>
+      <rect class="blk b2" x="160" y="150" width="240" height="34" rx="5"/><text x="280" y="172" text-anchor="middle" font-size="14" style="fill:#fff">指示檔（CLAUDE.md…）</text>
+      <rect class="blk b1" x="160" y="114" width="240" height="34" rx="5"/><text x="280" y="136" text-anchor="middle" font-size="14">之前的對話</text>
+      <rect class="blk b1" x="160" y="78" width="240" height="34" rx="5"/><text x="280" y="100" text-anchor="middle" font-size="14">讀進來的檔案、工具結果</text>
+      <rect class="blk" x="160" y="42" width="240" height="34" rx="5" fill="none" stroke="var(--accent)" stroke-dasharray="4 3"/><text x="280" y="64" text-anchor="middle" font-size="14" class="s-accent">這一輪的輸出</text>
+      <text x="20" y="128" font-size="15" class="s-muted">上下文視窗</text>
+      <text x="20" y="148" font-size="13" class="s-muted">＝AI 這一輪</text>
+      <text x="20" y="166" font-size="13" class="s-muted">看得到的全部</text>
+    </svg>
+    <figcaption>圖 1　所有東西都堆在同一個視窗裡，堆到上限就放不下了</figcaption>
+  </figure>
+
+  <div class="tbl"><table>
+    <thead><tr><th>視窗裡的東西（Claude Code 範例 session）</th><th>大約佔多少 token</th></tr></thead>
+    <tbody>
+      <tr><td>System prompt</td><td class="num">4,200<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>專案 CLAUDE.md</td><td class="num">1,800<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>讀一個檔案 <code>src/api/auth.ts</code></td><td class="num">2,400<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>你打的第一句 prompt</td><td class="num">45<a class="src" href="#src-s2">S2</a></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>視窗有多大？</h3>
+  <p>容量用 token 計算，依模型不同，最多可以到 1M tokens<a class="src" href="#src-s1">S1</a>。
+  如果光是輸入就已經超過視窗，API 會直接回傳 400 錯誤<a class="src" href="#src-s1">S1</a>。
+  不過視窗大不代表塞越多越好，context 越多不一定越好<a class="src" href="#src-s1">S1</a>（第 3 節會解釋原因）。</p>
+</section>
+
+<!-- ===== 2 ===== -->
+<section id="s2">
+  <h2><span class="no">2</span>三種記憶一次看懂</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>記憶類型</th><th>Claude 的例子</th><th>存在哪、誰寫</th><th>什麼時候進到視窗</th></tr></thead>
+    <tbody>
+      <tr><td><b>對話內記憶</b></td><td>上下文視窗本身</td><td>每一輪的輸入都包含之前所有對話歷史<a class="src" href="#src-s1">S1</a></td><td>一直都在，直到滿了被壓縮<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td><b>跨對話記憶</b></td><td>聊天記憶、搜尋過去對話</td><td>Claude 在聊天時把記憶存成一個個主題<a class="src" href="#src-s4">S4</a></td><td>搜尋舊對話時以工具呼叫的形式出現<a class="src" href="#src-s4">S4</a></td></tr>
+      <tr><td><b>外部檔案記憶</b></td><td>CLAUDE.md、自動記憶</td><td>CLAUDE.md 由你寫，自動記憶由 Claude 寫<a class="src" href="#src-s3">S3</a></td><td>你還沒打字前就載入 context<a class="src" href="#src-s2">S2</a></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>為什麼需要「跨對話」和「外部檔案」？</h3>
+  <p>因為每個 Claude Code session 都是從一個全新的上下文視窗開始<a class="src" href="#src-s3">S3</a>。
+  CLAUDE.md 和自動記憶就是用來把知識帶到下一個 session 的<a class="src" href="#src-s3">S3</a>。
+  聊天 App 這邊也一樣：S4 形容有了記憶之後，Claude 從無狀態（stateless）的聊天介面，變成會隨時間累積理解的合作者<a class="src" href="#src-s4">S4</a>。</p>
+
+  <h3>關鍵：最後都要放進視窗</h3>
+  <p>搜尋舊對話的結果是以工具呼叫的形式出現在對話中<a class="src" href="#src-s4">S4</a>，而工具結果本來就會算進上下文視窗<a class="src" href="#src-s1">S1</a>。
+  CLAUDE.md、自動記憶、MCP 工具名稱和 skill 說明，在你打字之前就已經載入 context<a class="src" href="#src-s2">S2</a>。</p>
+
+  <figure>
+    <svg viewBox="0 0 560 230" role="img" aria-label="三種記憶的箭頭都指向同一個上下文視窗">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker></defs>
+      <rect x="10" y="20" width="200" height="50" rx="8" class="b1"/><text x="110" y="42" text-anchor="middle" font-size="14">對話內</text><text x="110" y="60" text-anchor="middle" font-size="12" class="s-muted">之前的對話歷史</text>
+      <rect x="10" y="90" width="200" height="50" rx="8" class="b1"/><text x="110" y="112" text-anchor="middle" font-size="14">跨對話</text><text x="110" y="130" text-anchor="middle" font-size="12" class="s-muted">聊天記憶／搜尋舊對話</text>
+      <rect x="10" y="160" width="200" height="50" rx="8" class="b1"/><text x="110" y="182" text-anchor="middle" font-size="14">外部檔案</text><text x="110" y="200" text-anchor="middle" font-size="12" class="s-muted">CLAUDE.md／自動記憶</text>
+      <path class="arrow" d="M214,45 C290,45 290,100 356,108"/>
+      <path class="arrow" d="M214,115 L356,115"/>
+      <path class="arrow" d="M214,185 C290,185 290,130 356,122"/>
+      <rect class="box-window" x="360" y="60" width="185" height="110" rx="10"/>
+      <text x="452" y="110" text-anchor="middle" font-size="16" class="s-accent" font-weight="700">上下文視窗</text>
+      <text x="452" y="132" text-anchor="middle" font-size="12" class="s-muted">AI 只看得到這裡</text>
+    </svg>
+    <figcaption>圖 2　三種記憶來源不同，但都要「被放進」同一個視窗</figcaption>
+  </figure>
+</section>
+
+<!-- ===== 3 ===== -->
+<section id="s3">
+  <h2><span class="no">3</span>為什麼越聊越貴、越容易忘</h2>
+  <h3>原因一：每一輪都把之前的對話再送一次</h3>
+  <p>對話一輪一輪進行時，每則使用者訊息和 AI 的回應都會累積在上下文視窗裡，之前的輪次完整保留<a class="src" href="#src-s1">S1</a>。
+  每一輪的輸入 = 之前所有對話歷史 + 這次的訊息；這輪的輸出又會變成下一輪輸入的一部分<a class="src" href="#src-s1">S1</a>。</p>
+
+  <figure>
+    <svg viewBox="0 0 560 210" role="img" aria-label="三次請求的輸入長度：4 塊、6 塊、8 塊，一次比一次長">
+      <text x="10" y="44" font-size="14">第 1 次</text>
+      <text x="10" y="104" font-size="14">第 2 次</text>
+      <text x="10" y="164" font-size="14">第 3 次</text>
+      <g font-size="13" text-anchor="middle">
+        <rect class="blk b3" x="70" y="24" width="56" height="30" rx="4"/><text x="98" y="44" style="fill:#fff">System</text>
+        <rect class="blk b1" x="126" y="24" width="56" height="30" rx="4"/><text x="154" y="44">U1</text>
+        <rect class="blk b2" x="182" y="24" width="56" height="30" rx="4"/><text x="210" y="44" style="fill:#fff">A1</text>
+        <rect class="blk b1" x="238" y="24" width="56" height="30" rx="4"/><text x="266" y="44">U2</text>
+
+        <rect class="blk b3" x="70" y="84" width="56" height="30" rx="4"/><text x="98" y="104" style="fill:#fff">System</text>
+        <rect class="blk b1" x="126" y="84" width="56" height="30" rx="4"/><text x="154" y="104">U1</text>
+        <rect class="blk b2" x="182" y="84" width="56" height="30" rx="4"/><text x="210" y="104" style="fill:#fff">A1</text>
+        <rect class="blk b1" x="238" y="84" width="56" height="30" rx="4"/><text x="266" y="104">U2</text>
+        <rect class="blk b2" x="294" y="84" width="56" height="30" rx="4"/><text x="322" y="104" style="fill:#fff">A2</text>
+        <rect class="blk b1" x="350" y="84" width="56" height="30" rx="4"/><text x="378" y="104">U3</text>
+
+        <rect class="blk b3" x="70" y="144" width="56" height="30" rx="4"/><text x="98" y="164" style="fill:#fff">System</text>
+        <rect class="blk b1" x="126" y="144" width="56" height="30" rx="4"/><text x="154" y="164">U1</text>
+        <rect class="blk b2" x="182" y="144" width="56" height="30" rx="4"/><text x="210" y="164" style="fill:#fff">A1</text>
+        <rect class="blk b1" x="238" y="144" width="56" height="30" rx="4"/><text x="266" y="164">U2</text>
+        <rect class="blk b2" x="294" y="144" width="56" height="30" rx="4"/><text x="322" y="164" style="fill:#fff">A2</text>
+        <rect class="blk b1" x="350" y="144" width="56" height="30" rx="4"/><text x="378" y="164">U3</text>
+        <rect class="blk b2" x="406" y="144" width="56" height="30" rx="4"/><text x="434" y="164" style="fill:#fff">A3</text>
+        <rect class="blk b1" x="462" y="144" width="56" height="30" rx="4"/><text x="490" y="164">U4</text>
+      </g>
+      <text x="70" y="200" font-size="13" class="s-muted">U＝你的訊息　A＝AI 的回應　（每一次都從 System 開始重送）</text>
+    </svg>
+    <figcaption>圖 3　同一段對話，每一次請求的輸入都更長</figcaption>
+  </figure>
+
+  <div class="tbl"><table>
+    <thead><tr><th>第幾次請求</th><th>送進去的內容</th></tr></thead>
+    <tbody>
+      <tr><td>第 1 次</td><td>System + User(1) + Asst(1) + User(2)<a class="src" href="#src-s5">S5</a></td></tr>
+      <tr><td>第 2 次</td><td>System + User(1) + Asst(1) + User(2) + Asst(2) + User(3)<a class="src" href="#src-s5">S5</a></td></tr>
+      <tr><td>第 3 次</td><td>System + User(1) + Asst(1) + User(2) + Asst(2) + User(3) + Asst(3) + User(4)<a class="src" href="#src-s5">S5</a></td></tr>
+    </tbody>
+  </table></div>
+  <p>所以不相關的舊對話不只佔位置，而且每送一則訊息都在花 token<a class="src" href="#src-s2">S2</a>。</p>
+
+  <h3>原因二：塞越多，越抓不到重點（context rot）</h3>
+  <p>token 越多，模型的準確度和回想能力（recall）就會下降，這個現象叫 context rot（上下文腐化）<a class="src" href="#src-s1">S1</a>。
+  因此「挑選放進 context 的內容」跟「視窗有多大」一樣重要<a class="src" href="#src-s1">S1</a>。
+  舊對話還會擠掉你接下來真正需要的檔案<a class="src" href="#src-s2">S2</a>。</p>
+
+  <h3>視窗快滿了怎麼辦？壓縮（compaction）</h3>
+  <p>壓縮會自動把對話較早的部分摘要起來，讓對話可以超過視窗上限繼續進行<a class="src" href="#src-s1">S1</a>。
+  Claude Code 在接近上限時會自動壓縮，所以視窗滿了不會讓 session 結束<a class="src" href="#src-s2">S2</a>。</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Claude Code 範例 session</th><th>使用中的 token</th></tr></thead>
+    <tbody>
+      <tr><td>壓縮（<code>/compact</code>）之前</td><td class="num">22,225<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>壓縮之後</td><td class="num">17,095<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>其中：對話摘要</td><td class="num">1,725<a class="src" href="#src-s2">S2</a></td></tr>
+    </tbody>
+  </table></div>
+  <p>代價是細節會被摘要掉：只在對話裡講過的指示，要寫進 CLAUDE.md 才會在壓縮後保留下來<a class="src" href="#src-s3">S3</a>。</p>
+</section>
+
+<!-- ===== 4 ===== -->
+<section id="s4">
+  <h2><span class="no">4</span>Claude 實例 A：聊天 App 怎麼記住你</h2>
+  <h3>記憶（memory）：把你的事記成一個個主題</h3>
+  <p>Free、Pro、Max、Ultra 方案的記憶預設是開啟的<a class="src" href="#src-s4">S4</a>。
+  Claude 會在聊天過程中把記憶存成一個個主題，而不是等對話結束後才做摘要<a class="src" href="#src-s4">S4</a>。
+  它會自己判斷要存什麼，你也可以直接說「remember this」叫它存<a class="src" href="#src-s4">S4</a>。
+  每個專案（project）有自己的記憶；在專案裡，Claude 會用專案記憶加上專案外的聊天記憶，但不會用其他專案的記憶<a class="src" href="#src-s4">S4</a>。</p>
+  <p>它會記的東西像是：你的角色、專案和工作背景<a class="src" href="#src-s4">S4</a>。
+  健康、宗教、政治等敏感主題預設不存<a class="src" href="#src-s4">S4</a>；而有些資訊（例如政府身分證號、金融帳號）就算你要求也不會存<a class="src" href="#src-s4">S4</a>。
+  你可以在設定裡打開任何一個主題來看、編輯或刪除<a class="src" href="#src-s4">S4</a>。</p>
+
+  <h3>三種功能比一比</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>功能</th><th>做什麼</th><th>誰能用／怎麼用</th></tr></thead>
+    <tbody>
+      <tr><td><b>記憶</b></td><td>把重要資訊存成主題，帶到新對話<a class="src" href="#src-s4">S4</a></td><td>Free、Pro、Max、Ultra 預設開啟<a class="src" href="#src-s4">S4</a></td></tr>
+      <tr><td><b>搜尋過去對話</b></td><td>用 RAG（檢索增強生成）找舊對話，以工具呼叫的形式出現<a class="src" href="#src-s4">S4</a></td><td>付費方案<a class="src" href="#src-s4">S4</a></td></tr>
+      <tr><td><b>無痕聊天</b></td><td>不存進記憶，也不存進聊天紀錄<a class="src" href="#src-s4">S4</a></td><td>所有人都能用<a class="src" href="#src-s4">S4</a></td></tr>
+      <tr><td><b>單次關閉記憶</b></td><td>這次對話不用記憶、也不存記憶，但對話仍留在聊天紀錄<a class="src" href="#src-s4">S4</a></td><td>必須在送出第一則訊息前關掉<a class="src" href="#src-s4">S4</a></td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <svg viewBox="0 0 560 190" role="img" aria-label="示意：對話 A 存下一個主題，新對話 B 讀得到；無痕對話不會存">
+      <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker></defs>
+      <rect x="10" y="20" width="150" height="56" rx="8" class="b1"/><text x="85" y="44" text-anchor="middle" font-size="14">對話 A</text><text x="85" y="63" text-anchor="middle" font-size="12" class="s-muted">「期中報告改到週五」</text>
+      <path d="M164,48 L222,48" stroke="var(--muted)" stroke-width="2" marker-end="url(#ah2)"/>
+      <rect x="226" y="14" width="110" height="68" rx="34" class="box-window"/><text x="281" y="44" text-anchor="middle" font-size="14" class="s-accent" font-weight="700">記憶主題</text><text x="281" y="63" text-anchor="middle" font-size="12" class="s-muted">報告截止日</text>
+      <path d="M340,48 L398,48" stroke="var(--muted)" stroke-width="2" marker-end="url(#ah2)"/>
+      <rect x="402" y="20" width="150" height="56" rx="8" class="b1"/><text x="477" y="44" text-anchor="middle" font-size="14">新對話 B</text><text x="477" y="63" text-anchor="middle" font-size="12" class="s-muted">一開始就知道</text>
+      <rect x="10" y="114" width="150" height="56" rx="8" fill="none" stroke="var(--muted)" stroke-dasharray="5 4"/><text x="85" y="138" text-anchor="middle" font-size="14">無痕對話 👻</text><text x="85" y="157" text-anchor="middle" font-size="12" class="s-muted">不存記憶、不留紀錄</text>
+      <path d="M164,142 L222,100" stroke="var(--muted)" stroke-width="2" stroke-dasharray="4 4"/>
+      <text x="196" y="132" font-size="22" style="fill:var(--bad)" font-weight="700">✕</text>
+    </svg>
+    <figcaption>圖 4（示意）　記憶會跨對話帶過去；無痕對話不會</figcaption>
+  </figure>
+</section>
+
+<!-- ===== 5 ===== -->
+<section id="s5">
+  <h2><span class="no">5</span>Claude 實例 B：Claude Code 的 CLAUDE.md 與自動記憶</h2>
+  <p>每個 Claude Code session 都是從全新的上下文視窗開始<a class="src" href="#src-s3">S3</a>，所以要靠兩種「寫在檔案裡的記憶」把知識帶到下一次。</p>
+
+  <h3>兩種檔案記憶</h3>
+  <p>CLAUDE.md 是你寫給 Claude 的指示檔，Claude 在每個 session 開始時都會讀<a class="src" href="#src-s3">S3</a>。
+  自動記憶（auto memory）則是 Claude 根據你的更正和偏好，自己寫給自己的筆記<a class="src" href="#src-s3">S3</a>。</p>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>CLAUDE.md</th><th>自動記憶</th></tr></thead>
+    <tbody>
+      <tr><td><b>誰寫</b></td><td>你<a class="src" href="#src-s3">S3</a></td><td>Claude<a class="src" href="#src-s3">S3</a></td></tr>
+      <tr><td><b>內容</b></td><td>指示與規則<a class="src" href="#src-s3">S3</a></td><td>學到的東西與模式<a class="src" href="#src-s3">S3</a></td></tr>
+      <tr><td><b>什麼時候載入</b></td><td>每個 session<a class="src" href="#src-s3">S3</a></td><td>只載入 <code>MEMORY.md</code> 的前 200 行或 25KB<a class="src" href="#src-s3">S3</a></td></tr>
+      <tr><td><b>適合放</b></td><td>程式規範、工作流程、專案架構<a class="src" href="#src-s3">S3</a></td><td>你的偏好、你給過的更正<a class="src" href="#src-s3">S3</a></td></tr>
+    </tbody>
+  </table></div>
+  <p>自動記憶的筆記分成四種：user、feedback、project、reference<a class="src" href="#src-s3">S3</a>。
+  它用 <code>MEMORY.md</code> 當索引，細節寫在一個個主題檔；主題檔不會在啟動時載入，需要時才去讀<a class="src" href="#src-s3">S3</a>。
+  Claude 會把詳細筆記移到主題檔，讓 <code>MEMORY.md</code> 保持精簡<a class="src" href="#src-s3">S3</a>。</p>
+
+  <h3>開工前就先吃掉的 token</h3>
+  <p>你還沒打字之前，CLAUDE.md、自動記憶、MCP 工具名稱和 skill 說明就已經載入 context<a class="src" href="#src-s2">S2</a>：</p>
+  <figure>
+    <svg viewBox="0 0 560 250" role="img" aria-label="啟動時載入的 token 長條圖：System prompt 4200、專案 CLAUDE.md 1800、MEMORY.md 680、Skill 說明 450、使用者 CLAUDE.md 320、環境資訊 280、MCP 工具名稱 120">
+      <g font-size="13">
+        <text x="150" y="27" text-anchor="end">System prompt</text><rect class="b3" x="158" y="14" width="320" height="20" rx="3"/><text x="484" y="29">4,200</text>
+        <text x="150" y="61" text-anchor="end">專案 CLAUDE.md</text><rect class="b3" x="158" y="48" width="137" height="20" rx="3"/><text x="301" y="63">1,800</text>
+        <text x="150" y="95" text-anchor="end">MEMORY.md</text><rect class="b2" x="158" y="82" width="52" height="20" rx="3"/><text x="216" y="97">680</text>
+        <text x="150" y="129" text-anchor="end">Skill 說明</text><rect class="b2" x="158" y="116" width="34" height="20" rx="3"/><text x="198" y="131">450</text>
+        <text x="150" y="163" text-anchor="end">使用者 CLAUDE.md</text><rect class="b2" x="158" y="150" width="24" height="20" rx="3"/><text x="188" y="165">320</text>
+        <text x="150" y="197" text-anchor="end">環境資訊</text><rect class="b1" x="158" y="184" width="21" height="20" rx="3"/><text x="185" y="199">280</text>
+        <text x="150" y="231" text-anchor="end">MCP 工具名稱</text><rect class="b1" x="158" y="218" width="9" height="20" rx="3"/><text x="173" y="233">120</text>
+      </g>
+    </svg>
+    <figcaption>圖 5　範例 session 中，你打第一個字之前就已經在視窗裡的東西（數字見下表）</figcaption>
+  </figure>
+  <div class="tbl"><table>
+    <thead><tr><th>啟動時載入的東西</th><th>token</th></tr></thead>
+    <tbody>
+      <tr><td>System prompt</td><td class="num">4,200<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>專案 CLAUDE.md</td><td class="num">1,800<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>自動記憶 <code>MEMORY.md</code></td><td class="num">680<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>Skill 說明</td><td class="num">450<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>使用者層級 <code>~/.claude/CLAUDE.md</code></td><td class="num">320<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>環境資訊</td><td class="num">280<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td>MCP 工具名稱</td><td class="num">120<a class="src" href="#src-s2">S2</a></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>寫 CLAUDE.md 的三個提醒</h3>
+  <ul class="tips">
+    <li>每個 CLAUDE.md 建議少於 200 行，越長越吃 context，也越不容易被遵守<a class="src" href="#src-s3">S3</a>。</li>
+    <li>CLAUDE.md 是 context，不是強制設定；要強制擋住某個動作，要用 PreToolUse hook<a class="src" href="#src-s3">S3</a>。</li>
+    <li>如果專案已經有 AGENTS.md，可以在 CLAUDE.md 裡匯入它，Claude 就會讀 CLAUDE.md 並透過匯入包含 AGENTS.md<a class="src" href="#src-s3">S3</a>。</li>
+  </ul>
+</section>
+
+<!-- ===== 6 ===== -->
+<section id="s6">
+  <h2><span class="no">6</span>彩蛋：省 token 小技巧</h2>
+  <p>回到第 3 節的重點：挑選放進 context 的內容，跟視窗有多大一樣重要<a class="src" href="#src-s1">S1</a>。</p>
+
+  <h3>在 Claude Code 裡</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>技巧</th><th>怎麼做</th><th>為什麼有用</th></tr></thead>
+    <tbody>
+      <tr><td><b>換任務就清空</b></td><td>換到不相關的工作時跑 <code>/clear</code><a class="src" href="#src-s2">S2</a></td><td>舊對話會擠掉你需要的檔案，而且每則訊息都在花 token<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td><b>指定重點壓縮</b></td><td>開始長任務前跑 <code>/compact focus on ...</code><a class="src" href="#src-s2">S2</a></td><td>摘要保留你選的重點，而不是讓自動壓縮去猜<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td><b>把大量閱讀外包</b></td><td>把研究交給子代理（subagent）<a class="src" href="#src-s2">S2</a></td><td>檔案內容留在子代理的視窗，不在你的視窗<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td><b>先看用量</b></td><td>跑 <code>/context</code> 看各類別用量和建議<a class="src" href="#src-s2">S2</a></td><td>看到實際的 context 用量和最佳化建議<a class="src" href="#src-s2">S2</a></td></tr>
+      <tr><td><b>CLAUDE.md 精簡</b></td><td>只跟部分程式有關的指示，搬到 path-scoped rules<a class="src" href="#src-s3">S3</a></td><td>這些規則只在處理相關檔案時才載入<a class="src" href="#src-s3">S3</a></td></tr>
+      <tr><td><b>備註寫成 HTML 註解</b></td><td>在 CLAUDE.md 用 <code>&lt;!-- 註解 --&gt;</code> 寫給人看的備註<a class="src" href="#src-s3">S3</a></td><td>不會花到 context token<a class="src" href="#src-s3">S3</a></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>提示快取（prompt caching）：重送的部分打折</h3>
+  <p>第 3 節說過每一輪都會重送之前的對話；prompt caching 的做法是：如果 prompt 開頭那段最近已經快取過，就直接用快取版本，減少處理時間和成本<a class="src" href="#src-s5">S5</a>。
+  快取預設可以活 5 分鐘，每次被用到都會免費刷新<a class="src" href="#src-s5">S5</a>。
+  多輪對話開啟自動快取時，快取點會隨著對話自動往前移<a class="src" href="#src-s5">S5</a>。</p>
+  <div class="tbl"><table>
+    <thead><tr><th>動作</th><th>價格（相對於一般輸入 token）</th></tr></thead>
+    <tbody>
+      <tr><td>寫入快取（5 分鐘）</td><td>1.25 倍<a class="src" href="#src-s5">S5</a></td></tr>
+      <tr><td>寫入快取（1 小時）</td><td>2 倍<a class="src" href="#src-s5">S5</a></td></tr>
+      <tr><td>從快取讀取</td><td>0.1 倍；Opus 5.5、Sonnet 5.5 是 0.05 倍<a class="src" href="#src-s5">S5</a></td></tr>
+    </tbody>
+  </table></div>
+  <p>想讓快取發揮作用：把固定不變的內容放在 prompt 開頭<a class="src" href="#src-s5">S5</a>，也不要隨便改工具定義，因為那會讓整個快取失效<a class="src" href="#src-s5">S5</a>。</p>
+  <p>但要注意：快取只改變你付多少錢，不會讓這些 token 不算進上下文視窗<a class="src" href="#src-s1">S1</a>。</p>
+
+  <div class="egg">
+    <h3>🥚 做這一頁本身花了多少 token？</h3>
+    <p class="note">這一格是本作業自己的執行紀錄（<code>wiki/log.md</code>、<code>docs/05-token-log.md</code>），不是 S1–S5 的內容。token 數是用讀寫的字元數估算的。</p>
+    <div class="stats">
+      <div class="stat"><b>約 8 萬</b><span>從抓資料到 6 節寫完（估算）</span></div>
+      <div class="stat"><b>約 5 萬</b><span>最耗的一步：Ingest 5 份資料</span></div>
+      <div class="stat"><b>6 次</b><span>關卡 2 來源檢查 FAIL（6 節各 1 次）</span></div>
+      <div class="stat"><b>3 處</b><span>檢查器沒抓到、靠人工複讀才發現的語意錯誤</span></div>
+    </div>
+    <p class="note">最常出錯的是「沒標來源的總結句」和「自己加的推論」：這兩種剛好就是 AI 最容易順手補上的東西。</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap" id="sources">
+  <h2>來源（全部是 Anthropic 官方文件，抓取日期 2026-11-23）</h2>
+  <ol>
+    <li id="src-s1"><b>S1</b>　Context windows — <a href="https://platform.claude.com/docs/en/build-with-claude/context-windows">platform.claude.com/docs/en/build-with-claude/context-windows</a></li>
+    <li id="src-s2"><b>S2</b>　Explore the context window（Claude Code）— <a href="https://code.claude.com/docs/en/context-window">code.claude.com/docs/en/context-window</a></li>
+    <li id="src-s3"><b>S3</b>　How Claude remembers your project — <a href="https://code.claude.com/docs/en/memory">code.claude.com/docs/en/memory</a></li>
+    <li id="src-s4"><b>S4</b>　Use Claude's chat search and memory — <a href="https://support.claude.com/en/articles/11817273">support.claude.com/en/articles/11817273</a></li>
+    <li id="src-s5"><b>S5</b>　Prompt caching — <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">platform.claude.com/docs/en/build-with-claude/prompt-caching</a></li>
+  </ol>
+  <p class="made">本頁由 LLM Wiki + graph 工作流程產生</p>
+</footer>
+
+</body>
+</html>

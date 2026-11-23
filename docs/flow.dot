@@ -1,0 +1,36 @@
+digraph G {
+  rankdir=TB;
+  graph [fontname="Noto Sans CJK TC", fontsize=13, nodesep=0.35, ranksep=0.35, bgcolor="white", pad=0.3];
+  node  [fontname="Noto Sans CJK TC", fontsize=12, shape=box, style="rounded,filled", fillcolor="#EEF2FF", color="#4F46E5", penwidth=1.3];
+  edge  [fontname="Noto Sans CJK TC", fontsize=11, color="#555555"];
+
+  raw    [label="raw/ 5 份官方資料\n(S1–S5，唯讀)", fillcolor="#F3F4F6", color="#6B7280"];
+  ingest [label="節點0 Ingest ×5\n→ concepts / sources / index / log"];
+  lint   [label="Lint 健檢\n孤兒頁・斷連結・漏標來源"];
+  outline[label="節點1 讀 index.md → 產大綱"];
+  g1     [label="關卡1 大綱審核\n(人工確認)", shape=diamond, fillcolor="#FEF3C7", color="#D97706"];
+  sec    [label="節點2 逐節寫內容＋證據表\n(只開需要的概念頁，先找原文再寫句子)"];
+  g2     [label="關卡2 來源檢查 loop\n① check_sources.py 比對原文\n② 人工語意複讀", shape=diamond, fillcolor="#FEF3C7", color="#D97706"];
+  drop   [label="第3輪仍不合格\n→ 刪句＋記 log", fillcolor="#FEE2E2", color="#DC2626"];
+  more   [label="還有下一節？", shape=diamond, fillcolor="#FFFFFF", color="#6B7280"];
+  html   [label="節點3 組成 index.html"];
+  g3     [label="關卡3 版面檢查 loop\n表格/圖・手機寬・來源\n＋HTML↔section 一致性", shape=diamond, fillcolor="#FEF3C7", color="#D97706"];
+  manual [label="第2輪仍不合格\n→ 手動修＋記 log", fillcolor="#FEE2E2", color="#DC2626"];
+  done   [label="完成：教學 HTML\n＋ log.md ＋ token 紀錄", fillcolor="#DCFCE7", color="#16A34A"];
+
+  raw -> ingest -> lint -> outline -> g1;
+  g1 -> outline [label=" 退回", style=dashed];
+  g1 -> sec [label=" OK"];
+  sec -> g2;
+  g2 -> sec [label=" FAIL\n(最多3輪)", style=dashed];
+  g2 -> more [label=" PASS"];
+  g2 -> drop [label=" 3輪用完", style=dashed];
+  drop -> more;
+  more -> sec [label=" 是"];
+  more -> html [label=" 否"];
+  html -> g3;
+  g3 -> html [label=" FAIL\n(最多2輪)", style=dashed];
+  g3 -> done [label=" PASS"];
+  g3 -> manual [label=" 2輪用完", style=dashed];
+  manual -> done;
+}
