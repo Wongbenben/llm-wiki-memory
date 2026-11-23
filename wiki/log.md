@@ -33,3 +33,4 @@
 ## [2026-11-23 15:01] check | output/index.html | 關卡3 第1輪 FAIL：375px 下頁面沒有橫向爆版、6 節都有表或圖、103 個 [S#] 連結都點得到；但 ①SVG 圖跟著縮小，圖 3 的字只剩約 7px 看不清 ②表格、圖說、附註字體 14–15.5px，低於規定的 16px → 圖改成最小寬度＋框內左右滑、字體全部拉到 16px 以上 | 約 4k
 ## [2026-11-23 15:02] check | output/index.html | 關卡3 第2輪 PASS：375px 下無橫向爆版、p/td/li/圖說全部 ≥16px、SVG 最小字約 11px（原本 6px）、103 個 [S#] 連結都點得到、6 節都有表＋圖。另跑一致性檢查：HTML 文字和 section-1～6 完全一致 | 約 3k
 ## [2026-11-23 15:04] check | docs | 填完 05-token-log、04-flow（v2 修改）、06-reflection；更新 flow.dot 與 prompts/02-section-loop.md（v2）。flow.png 沒有重新產生（這台電腦沒有 Graphviz）| 約 6k
+## [2026-11-23 15:19] publish | 全部 | 上傳到 GitHub（Wongbenben/llm-wiki-memory）：git push 兩次都卡在登入視窗，改用網頁上傳 59 個檔（少 3 個空的 .gitkeep）；開 GitHub Pages（main / root）。用 375px 檢查線上版：6 節、5 張圖、103 個 [S#] 連結正常、無橫向爆版。教學頁：https://wongbenben.github.io/llm-wiki-memory/output/ | 約 3k
